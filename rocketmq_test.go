@@ -41,7 +41,7 @@ func TestPublish(t *testing.T) {
 		
 		msg := &broker.Message{
 			Header: map[string]string {
-				"timestamp": fmt.Sprintf("%d", time.Now().UnixNano()),
+				"timestamp": fmt.Sprintf("%d", time.Now().UnixNano() / 1000),
 			},
 			Body: body,
 		}
@@ -79,6 +79,8 @@ func TestSubscribe(t *testing.T) {
 
 		m := p.Message()
 
+		timestamp := m.Header["timestamp"]
+
 		count += 1
 
 		var msg MyMessage
@@ -87,10 +89,10 @@ func TestSubscribe(t *testing.T) {
 			fmt.Printf("Subscribe err: %v\n", err)
 			return err
 		}
-		t.Logf("Subscribe message ID: %v, count: %d\n", msg.ID, count)
+		t.Logf("Subscribe message ID: %s, ts: %s, count: %d\n", msg.ID, timestamp, count)
 		
 		return nil	
-	}, broker.Queue("default1"))
+	}, broker.Queue("default"))
 
 	if err = service.Run(); err != nil {
 		t.Fatal(err)

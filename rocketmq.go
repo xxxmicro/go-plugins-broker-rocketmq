@@ -1,9 +1,8 @@
 package rocketmq
 
 import(
-	"fmt"
-	"context"
 	"errors"
+	"context"
 	"sync"
 	"github.com/google/uuid"
 	"github.com/micro/go-micro/v2/broker"
@@ -101,8 +100,6 @@ func (k *rBroker) Connect() error {
 	}
 
 	p, err := rocketmq.NewProducer(ropts...)
-	fmt.Printf("opts: %v, err: %v\n", k.opts, err)
-
 	if err != nil {
 		return err
 	}
@@ -201,10 +198,10 @@ func (k *rBroker) Publish(topic string, msg *broker.Message, opts ...broker.Publ
 }
 
 func (k *rBroker) getPushConsumer(groupName string) (rocketmq.PushConsumer, error) {
-	fmt.Printf("groupName: %s\n", groupName)
 	cs, err := rocketmq.NewPushConsumer(
 		consumer.WithGroupName(groupName),
 		consumer.WithNsResovler(primitive.NewPassthroughResolver(k.addrs)),
+		consumer.WithConsumerOrder(true),
 	)
 
 	if err != nil {
@@ -225,7 +222,15 @@ func (k *rBroker) Subscribe(topic string, handler broker.Handler, opts ...broker
 		o(&opt)
 	}
 
-	c, err := k.getPushConsumer(opt.Queue)
+	// theoretically, groupName not queue
+	// in rocket. one topic have many queue, one queue only belongs to one consumer, one consumer can consume many queue
+	// many consumer belongs to a specified group shares messages of the topic 
+	groupName := opt.Queue
+	if len(groupName) == 0 {
+		return nil, errors.New("rocketmq need groupName or queue")
+	}
+
+	c, err := k.getPushConsumer(groupName)
 	if err != nil {
 		return nil, err
 	}
