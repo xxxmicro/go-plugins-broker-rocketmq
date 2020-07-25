@@ -201,6 +201,7 @@ func (k *rBroker) Publish(topic string, msg *broker.Message, opts ...broker.Publ
 }
 
 func (k *rBroker) getPushConsumer(groupName string) (rocketmq.PushConsumer, error) {
+	fmt.Printf("groupName: %s\n", groupName)
 	cs, err := rocketmq.NewPushConsumer(
 		consumer.WithGroupName(groupName),
 		consumer.WithNsResovler(primitive.NewPassthroughResolver(k.addrs)),

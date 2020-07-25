@@ -1,6 +1,7 @@
 package rocketmq_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 	"fmt"
@@ -70,19 +71,26 @@ func TestSubscribe(t *testing.T) {
 		micro.Broker(b),
 	)
 
+	var lock sync.Mutex
+	count := 0
 	_, err := b.Subscribe("messages", func(p broker.Event) error {
+		lock.Lock()
+		defer lock.Unlock()
+
 		m := p.Message()
-		fmt.Printf("Subscribe message: %v\n", m)
+
+		count += 1
 
 		var msg MyMessage
 		err := json.Unmarshal(m.Body, &msg)
 		if err != nil {
+			fmt.Printf("Subscribe err: %v\n", err)
 			return err
 		}
-		fmt.Printf("Subscribe message: %v\n", msg)
+		t.Logf("Subscribe message ID: %v, count: %d\n", msg.ID, count)
 		
 		return nil	
-	})
+	}, broker.Queue("default1"))
 
 	if err = service.Run(); err != nil {
 		t.Fatal(err)
