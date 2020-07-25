@@ -1,15 +1,17 @@
 package rocketmq
 
 import(
+	"fmt"
 	"context"
 	"errors"
 	"sync"
 	"github.com/google/uuid"
 	"github.com/micro/go-micro/v2/broker"
-	"github.com/micro/go-micro/v2/cmd"
+	"github.com/micro/go-micro/v2/config/cmd"
 	"github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 
@@ -18,7 +20,7 @@ type rBroker struct {
 
 	p rocketmq.Producer
 
-	sc []rocketmq.PullConsumer
+	sc []rocketmq.PushConsumer
 
 	connected bool
 	scMutex   sync.RWMutex
@@ -28,11 +30,11 @@ type rBroker struct {
 type subscriber struct {
 	t    	string
 	opts 	broker.SubscribeOptions
-	c 	 	rocketmq.Consumer
+	c 	 	rocketmq.PushConsumer
 }
 
 type publication struct {
-	c			rocketmq.Consumer
+	c			rocketmq.PushConsumer
 	m    	*broker.Message
 	t    	string
 	err  	error
@@ -83,15 +85,8 @@ func (k *rBroker) Connect() error {
 		return nil
 	}
 
-	k.scMutex.Lock()
-	if k.c != nil {
-		k.connected = true
-		k.scMutex.Unlock()
-		return nil
-	}
-	k.scMutex.Unlock()
-
 	ropts := make([]producer.Option, 0)
+
 	ropts = append(ropts, producer.WithNsResovler(primitive.NewPassthroughResolver(k.opts.Addrs)))
 
 	if retry, ok := k.opts.Context.Value(retryKey{}).(int); ok {
@@ -105,7 +100,9 @@ func (k *rBroker) Connect() error {
 		}))
 	}
 
-	p, err := rocketmq.NewProducer(ropts)
+	p, err := rocketmq.NewProducer(ropts...)
+	fmt.Printf("opts: %v, err: %v\n", k.opts, err)
+
 	if err != nil {
 		return err
 	}
@@ -116,9 +113,8 @@ func (k *rBroker) Connect() error {
 	}
 
 	k.scMutex.Lock()
-	k.c = c
 	k.p = p
-	k.sc = make([]rocketmq.PullConsumer, 0)
+	k.sc = make([]rocketmq.PushConsumer, 0)
 	k.connected = true
 	k.scMutex.Unlock()
 
@@ -190,7 +186,7 @@ func (k *rBroker) Publish(topic string, msg *broker.Message, opts ...broker.Publ
 		}
 	}
 
-	m := primitive.NewMessage(topic, b)
+	m := primitive.NewMessage(topic, []byte(msg.Body))
 
 	for k, v := range msg.Header {
 		m.WithProperty(k, v)
@@ -199,13 +195,13 @@ func (k *rBroker) Publish(topic string, msg *broker.Message, opts ...broker.Publ
 	if delayTimeLevel > 0 {
 		m.WithDelayTimeLevel(delayTimeLevel)
 	} 
-	_, err = k.p.SendSync(context.Background(), m)
+	_, err := k.p.SendSync(context.Background(), m)
 	
 	return err
 }
 
-func (k *rBroker) getPullConsumer(topic string) (rocketmq.Consumer, error) {
-	cs, err := rocketmq.NewPullConsumer(
+func (k *rBroker) getPushConsumer(topic string) (rocketmq.PushConsumer, error) {
+	cs, err := rocketmq.NewPushConsumer(
 		consumer.WithGroupName(topic),
 		consumer.WithNsResovler(primitive.NewPassthroughResolver(k.addrs)),
 	)
@@ -222,32 +218,31 @@ func (k *rBroker) getPullConsumer(topic string) (rocketmq.Consumer, error) {
 func (k *rBroker) Subscribe(topic string, handler broker.Handler, opts ...broker.SubscribeOption) (broker.Subscriber, error) {
 	opt := broker.SubscribeOptions{
 		AutoAck: true,
-		Queue:   uuid.New().String(),
+		Queue: uuid.New().String(),	// 默认的队列名，会被覆盖的
 	}
 	for _, o := range opts {
 		o(&opt)
 	}
 
-	c, err := k.getPullConsumer(topic)
+	c, err := k.getPushConsumer(opt.Queue)
 	if err != nil {
 		return nil, err
 	}
 	
-	err := c.Subscribe(opt.Queue, consumer.MessageSelector{}, func(ctx context.Context, msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		for msg := range msgs {
-			properties
+	err = c.Subscribe(topic, consumer.MessageSelector{}, func(ctx context.Context, msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		for _, msg := range msgs {
 			header := make(map[string]string)
 			for k, v := range msg.GetProperties() {
-				header[k], _ = v.(string)
+				header[k] = v
 			}
 			
 			m := &broker.Message{
 				Header: header,
-				Body: msg.Body
+				Body: msg.Body,
 			}
 
 			p := &publication{c: c, m: m, t: msg.Topic}
-			p.err := handler(p)
+			p.err = handler(p)
 			if err != nil {
 				return consumer.ConsumeRetryLater, err
 			}
@@ -255,6 +250,11 @@ func (k *rBroker) Subscribe(topic string, handler broker.Handler, opts ...broker
 
 		return consumer.ConsumeSuccess, nil
 	})
+	
+	err = c.Start()
+	if err != nil {
+		return nil, err
+	}
 
 	return &subscriber{ t: topic, opts: opt, c: c }, nil
 }

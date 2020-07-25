@@ -1,27 +1,62 @@
 package rocketmq_test
 
 import (
-	"context"
-	"os"
 	"testing"
-
+	"time"
+	"fmt"
+	"encoding/json"
 	micro "github.com/micro/go-micro/v2"
 	broker "github.com/micro/go-micro/v2/broker"
 	server "github.com/micro/go-micro/v2/server"
-	rabbitmq "github.com/xxxmicro/go-plugins-broker-rocketmq/v2"
+	rocketmq "github.com/xxxmicro/go-plugins-broker-rocketmq/v2"
 )
+
+type MyMessage struct {
+	ID string	`json:"id"`
+	Sender string `json:"sender"`
+	Content string `json:"content"`
+}
 
 type Example struct{}
 
-func (e *Example) Handler(ctx context.Context, r interface{}) error {
-	return nil
+func TestPublish(t *testing.T) {
+	b := rocketmq.NewBroker(
+		broker.Addrs("127.0.0.1:9876"),
+	)
+	b.Init()
+	if err := b.Connect(); err != nil {
+		t.Logf("cant connect to broker, skip: %v", err)
+		t.Skip()
+	}
+
+	for i := 1; i <= 10; i++ {
+		sender := fmt.Sprintf("sender-%d", i)
+		content := fmt.Sprintf("第%d条内容", i)
+		
+		
+		m := MyMessage{ ID: fmt.Sprintf("%d", i), Sender: sender, Content: content}
+		
+		body, _ := json.Marshal(m)
+		
+		msg := &broker.Message{
+			Header: map[string]string {
+				"timestamp": fmt.Sprintf("%d", time.Now().UnixNano()),
+			},
+			Body: body,
+		}
+
+		err := b.Publish("messages", msg)
+		if err != nil {
+			t.Logf("publish error: %v", err)
+		}
+	}	
 }
 
-func TestOffset(t *testing.T) {
-	sub := broker.NewSubscribeOptions(	
-	)
 
-	b := rocketmq.NewBroker()
+func TestSubscribe(t *testing.T) {
+	b := rocketmq.NewBroker(
+		broker.Addrs("127.0.0.1:9876"),
+	)
 	b.Init()
 	if err := b.Connect(); err != nil {
 		t.Logf("cant connect to broker, skip: %v", err)
@@ -34,18 +69,22 @@ func TestOffset(t *testing.T) {
 		micro.Server(s),
 		micro.Broker(b),
 	)
-	h := &Example{}
 
-	// Register a subscriber
-	micro.RegisterSubscriber(
-		"topic",
-		service.Server(),
-		h.Handler,
-		server.SubscriberContext(sub.Context),
-		server.SubscribeQueue("queue.default"),
-	)
+	_, err := b.Subscribe("messages", func(p broker.Event) error {
+		m := p.Message()
+		fmt.Printf("Subscribe message: %v\n", m)
 
-	if err := service.Run(); err != nil {
+		var msg MyMessage
+		err := json.Unmarshal(m.Body, &msg)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Subscribe message: %v\n", msg)
+		
+		return nil	
+	})
+
+	if err = service.Run(); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -12,7 +12,8 @@ type retryKey struct{}
 type credentialsKey struct{}
 
 type Credentials struct {
-	
+	AccessKey string
+	SecretKey string
 }
 
 // WithDelayTimeLevel set message delay time to consume.

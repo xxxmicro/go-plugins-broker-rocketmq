@@ -1,0 +1,57 @@
+version: '3.5'
+services:
+  rmqnamesrv:
+    image: rocketmqinc/rocketmq:4.4.0
+    container_name: rmqnamesrv
+    ports:
+      - 9876:9876
+    volumes:
+      - ~/opt/rocketmq/logs:/home/rocketmq/logs
+      - ~/opt/rocketmq/store:/home/rocketmq/store
+      # - /etc/localtime:/etc/localtime:ro # 修改容器内的时区和宿主机一样
+    command: sh mqnamesrv
+    networks:
+      rmq:
+        aliases:
+          - rmqnamesrv
+  rmqbroker1:
+    image: rocketmqinc/rocketmq:4.4.0
+    container_name: rmqbroker1
+    ports:
+      - 10909:10909
+      - 10911:10911
+      - 10912:10912
+    volumes:
+      - ~/opt/rocketmq/logs:/home/rocketmq/logs
+      - ~/opt/rocketmq/store:/home/rocketmq/store
+      - ${PWD}/broker.conf:/opt/rocketmq-4.4.0/conf/broker.conf
+      # - /etc/localtime:/etc/localtime:ro # 修改容器内的时区和宿主机一样
+    #command: sh mqbroker -n namesrv:9876
+    command: sh mqbroker -n rmqnamesrv:9876 -c ../conf/broker.conf
+    depends_on:
+      - rmqnamesrv
+    environment:
+      - JAVA_HOME=/usr/lib/jvm/jre
+    networks:
+      rmq:
+        aliases:
+          - rmqbroker1
+  rmqconsole:
+    image: styletang/rocketmq-console-ng
+    container_name: rocketmq-console-ng
+    ports:
+      - 8087:8080
+    depends_on:
+      - rmqnamesrv
+    environment:
+      - JAVA_OPTS= -Dlogging.level.root=info   -Drocketmq.namesrv.addr=rmqnamesrv:9876 
+      - Dcom.rocketmq.sendMessageWithVIPChannel=false
+    networks:
+      rmq:
+        aliases:
+          - rmqconsole
+  
+networks:
+    rmq:
+      name: rmq
+      driver: bridge
