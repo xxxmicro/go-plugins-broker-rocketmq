@@ -38,7 +38,7 @@ func TestPublish(t *testing.T) {
 		content := fmt.Sprintf("第%d条内容", i)
 		
 		
-		m := MyMessage{ ID: fmt.Sprintf("%d", i), Sender: sender, Content: content}
+		m := MyMessage{ ID: fmt.Sprintf("id-%d", i), Sender: sender, Content: content}
 		
 		body, _ := json.Marshal(m)
 		
