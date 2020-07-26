@@ -38,12 +38,12 @@ func WithRetry(retry int) broker.Option {
 	}
 }
 
-func WithMaxReconsumeTimes(retry int) broker.Option {
+func WithMaxReconsumeTimes(maxReconsumeTimes int32) broker.Option {
 	return func(o *broker.Options) {
 		if o.Context == nil {
 			o.Context = context.Background()
 		}
-		o.Context = context.WithValue(o.Context, maxReconsumeTimesKey{}, retry)
+		o.Context = context.WithValue(o.Context, maxReconsumeTimesKey{}, maxReconsumeTimes)
 	}
 }
 

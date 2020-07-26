@@ -25,7 +25,7 @@ type Example struct{}
 func TestPublish(t *testing.T) {
 	b := rocketmq.NewBroker(
 		broker.Addrs("127.0.0.1:9876"),
-		rocketmq.WithRetry(3),
+		rocketmq.WithRetry(0),
 	)
 	b.Init()
 	if err := b.Connect(); err != nil {
@@ -61,11 +61,12 @@ func TestPublish(t *testing.T) {
 
 
 func TestSubscribe(t *testing.T) {
-	rlog.SetLogLevel("error")
+	rlog.SetLogLevel("info")
 
 	b := rocketmq.NewBroker(
 		broker.Addrs("127.0.0.1:9876"),
 		rocketmq.WithMaxReconsumeTimes(3),
+		rocketmq.WithRetry(3),
 	)
 	b.Init()
 	if err := b.Connect(); err != nil {
@@ -98,7 +99,7 @@ func TestSubscribe(t *testing.T) {
 			fmt.Printf("Subscribe err: %v\n", err)
 			return err
 		}
-		fmt.Printf("Subscribe message ID: %s, ts: %s, count: %d\n", msg.ID, timestamp, count)
+		fmt.Printf("Subscribe message Topic: %s, ID: %s, ts: %s, count: %d\n", p.Topic(), msg.ID, timestamp, count)
 		
 		return errors.New("only for test retry")
 	}, broker.Queue("default"))

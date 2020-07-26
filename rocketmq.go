@@ -11,6 +11,7 @@ import(
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 
@@ -250,6 +251,16 @@ func (k *rBroker) Subscribe(topic string, handler broker.Handler, opts ...broker
 	
 	err = c.Subscribe(topic, consumer.MessageSelector{}, func(ctx context.Context, msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		for _, msg := range msgs {
+			rlog.Info("Subscribe process message", map[string]interface{}{
+				"Topic": msg.Topic,
+				"ID": msg.MsgId,
+				"BornHost": msg.BornHost,
+				"QueueOffset": msg.QueueOffset,
+				"CommitLogOffset": msg.CommitLogOffset,
+				"PreparedTransactionOffset": msg.PreparedTransactionOffset,
+				"ReconsumeTimes": msg.ReconsumeTimes,
+			})
+			
 			header := make(map[string]string)
 			for k, v := range msg.GetProperties() {
 				header[k] = v
