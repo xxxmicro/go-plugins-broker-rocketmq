@@ -66,7 +66,6 @@ func TestSubscribe(t *testing.T) {
 	b := rocketmq.NewBroker(
 		broker.Addrs("127.0.0.1:9876"),
 		rocketmq.WithMaxReconsumeTimes(3),
-		rocketmq.WithRetry(3),
 	)
 	b.Init()
 	if err := b.Connect(); err != nil {
