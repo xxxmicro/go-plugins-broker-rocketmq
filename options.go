@@ -8,6 +8,7 @@ import (
 
 type delayTimeLevelKey struct{}
 type retryKey struct{}
+type maxReconsumeTimesKey struct{}
 
 type credentialsKey struct{}
 
@@ -28,8 +29,8 @@ func WithDelayTimeLevel(delayLevel int) broker.PublishOption {
 	}
 }
 
-func WithRetry(retry int) broker.PublishOption {
-	return func(o *broker.PublishOptions) {
+func WithRetry(retry int) broker.Option {
+	return func(o *broker.Options) {
 		if o.Context == nil {
 			o.Context = context.Background()
 		}
@@ -37,8 +38,17 @@ func WithRetry(retry int) broker.PublishOption {
 	}
 }
 
-func WithCredentials(credentials Credentials) broker.PublishOption {
-	return func(o *broker.PublishOptions) {
+func WithMaxReconsumeTimes(retry int) broker.Option {
+	return func(o *broker.Options) {
+		if o.Context == nil {
+			o.Context = context.Background()
+		}
+		o.Context = context.WithValue(o.Context, maxReconsumeTimesKey{}, retry)
+	}
+}
+
+func WithCredentials(credentials Credentials) broker.Option {
+	return func(o *broker.Options) {
 		if o.Context == nil {
 			o.Context = context.Background()
 		}

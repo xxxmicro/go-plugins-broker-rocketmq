@@ -1,6 +1,7 @@
 package rocketmq_test
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	broker "github.com/micro/go-micro/v2/broker"
 	server "github.com/micro/go-micro/v2/server"
 	rocketmq "github.com/xxxmicro/go-plugins-broker-rocketmq/v2"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type MyMessage struct {
@@ -23,6 +25,7 @@ type Example struct{}
 func TestPublish(t *testing.T) {
 	b := rocketmq.NewBroker(
 		broker.Addrs("127.0.0.1:9876"),
+		rocketmq.WithRetry(3),
 	)
 	b.Init()
 	if err := b.Connect(); err != nil {
@@ -30,7 +33,7 @@ func TestPublish(t *testing.T) {
 		t.Skip()
 	}
 
-	for i := 1; i <= 10; i++ {
+	for i := 1; i <= 1; i++ {
 		sender := fmt.Sprintf("sender-%d", i)
 		content := fmt.Sprintf("第%d条内容", i)
 		
@@ -39,9 +42,12 @@ func TestPublish(t *testing.T) {
 		
 		body, _ := json.Marshal(m)
 		
+		now := time.Now()
+		datetime := fmt.Sprintf("%d-%d-%d %d:%d:%d",now.Year(),now.Month(),now.Day(),now.Hour(),now.Minute(),now.Second())
+
 		msg := &broker.Message{
 			Header: map[string]string {
-				"timestamp": fmt.Sprintf("%d", time.Now().UnixNano() / 1000),
+				"timestamp": datetime,
 			},
 			Body: body,
 		}
@@ -55,8 +61,11 @@ func TestPublish(t *testing.T) {
 
 
 func TestSubscribe(t *testing.T) {
+	rlog.SetLogLevel("error")
+
 	b := rocketmq.NewBroker(
 		broker.Addrs("127.0.0.1:9876"),
+		rocketmq.WithMaxReconsumeTimes(3),
 	)
 	b.Init()
 	if err := b.Connect(); err != nil {
@@ -89,9 +98,9 @@ func TestSubscribe(t *testing.T) {
 			fmt.Printf("Subscribe err: %v\n", err)
 			return err
 		}
-		t.Logf("Subscribe message ID: %s, ts: %s, count: %d\n", msg.ID, timestamp, count)
+		fmt.Printf("Subscribe message ID: %s, ts: %s, count: %d\n", msg.ID, timestamp, count)
 		
-		return nil	
+		return errors.New("only for test retry")
 	}, broker.Queue("default"))
 
 	if err = service.Run(); err != nil {

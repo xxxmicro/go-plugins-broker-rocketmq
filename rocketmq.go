@@ -191,23 +191,35 @@ func (k *rBroker) Publish(topic string, msg *broker.Message, opts ...broker.Publ
 
 	if delayTimeLevel > 0 {
 		m.WithDelayTimeLevel(delayTimeLevel)
-	} 
+	}
 	_, err := k.p.SendSync(context.Background(), m)
 	
 	return err
 }
 
 func (k *rBroker) getPushConsumer(groupName string) (rocketmq.PushConsumer, error) {
-	cs, err := rocketmq.NewPushConsumer(
-		consumer.WithGroupName(groupName),
-		consumer.WithConsumerModel(consumer.Clustering),
-		consumer.WithNsResovler(primitive.NewPassthroughResolver(k.addrs)),
-		consumer.WithConsumerOrder(true),
-	)
+	ropts := make([]consumer.Option, 0)
 
+	ropts = append(ropts, consumer.WithNsResovler(primitive.NewPassthroughResolver(k.opts.Addrs)))
+	ropts = append(ropts, consumer.WithConsumerModel(consumer.Clustering))
+
+	if maxReconsumeTimes, ok := k.opts.Context.Value(maxReconsumeTimesKey{}).(int32); ok {
+		ropts = append(ropts, consumer.WithMaxReconsumeTimes(maxReconsumeTimes))
+	}
+
+	if credentials, ok := k.opts.Context.Value(credentialsKey{}).(Credentials); ok {
+		ropts = append(ropts, consumer.WithCredentials(primitive.Credentials{
+			AccessKey: credentials.AccessKey,
+			SecretKey: credentials.SecretKey,
+		}))
+	}
+	ropts = append(ropts, consumer.WithGroupName(groupName))	
+
+	cs, err := rocketmq.NewPushConsumer(ropts...)
 	if err != nil {
 		return nil, err
 	}
+
 	k.scMutex.Lock()
 	defer k.scMutex.Unlock()
 	k.sc = append(k.sc, cs)
@@ -250,8 +262,8 @@ func (k *rBroker) Subscribe(topic string, handler broker.Handler, opts ...broker
 
 			p := &publication{c: c, m: m, t: msg.Topic}
 			p.err = handler(p)
-			if err != nil {
-				return consumer.ConsumeRetryLater, err
+			if p.err != nil {
+				return consumer.ConsumeRetryLater, p.err
 			}
 		}
 
