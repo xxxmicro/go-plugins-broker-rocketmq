@@ -24,7 +24,7 @@ type Example struct{}
 
 func TestPublish(t *testing.T) {
 	b := rocketmq.NewBroker(
-		broker.Addrs("127.0.0.1:9876"),
+		broker.Addrs("http://localhost:9876"),
 		rocketmq.WithRetry(0),
 	)
 	b.Init()
@@ -64,7 +64,7 @@ func TestSubscribe(t *testing.T) {
 	rlog.SetLogLevel("info")
 
 	b := rocketmq.NewBroker(
-		broker.Addrs("127.0.0.1:9876"),
+		broker.Addrs("http://localhost:9876"),	// ipaddr: 127.0.0.1:9876, url: http://localhost:9876
 		rocketmq.WithMaxReconsumeTimes(3),
 	)
 	b.Init()
